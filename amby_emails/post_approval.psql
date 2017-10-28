@@ -1,0 +1,809 @@
+--yes_cache
+select * from (with
+  source_data as
+  (
+    select
+      lead_id,
+      CASE
+          WHEN lead.originating_user_id
+            IN (select user_id from ec) THEN 'ec'
+          ELSE lead.source END as source_clean
+    from lead
+  ),
+  /*subscription_contract_data as
+  (
+    select
+      lead_id,
+      approved_at
+    from [docs_and_approvals]
+    where type = 'subscriptionContract'
+    and approval_status = 'approved'
+  ),*/
+  approval_data as
+  (
+    select
+      lead_id,
+      approved_at,
+      proposal_capacity,
+      case when system_size_watts is null then proposal_capacity else system_size_watts end as system_size_watts
+    from (with
+/*inactivated
+proxy_approval as
+ (
+      select
+        approved_at + interval'3 days' as proxy_approved_at,
+        lead_id
+      from [docs_and_approvals]
+      where docs_and_approvals.type = 'customerInstallationPermissionRequest'
+      and docs_and_approvals.approval_status = 'approved'
+  ),
+all_approved_projects as
+  (
+      select
+        case
+          when proxy_approved_at < approved_at
+          then proxy_approved_at
+          else approved_at end
+            as approved_at,
+       docs_and_approvals.lead_id
+      from [docs_and_approvals]
+      left join proxy_approval
+      on proxy_approval.lead_id = docs_and_approvals.lead_id
+      where docs_and_approvals.type = 'subscriptionContract'
+      and docs_and_approvals.approval_status = 'approved'
+  ),
+*/
+  installation_size as
+  (
+      select
+        ih.installation_id,
+        ih.system_size_watts
+      from (select
+            installation_history.*,
+            row_number() over (partition by installation_id order by created_at desc) as inst_num
+            from installation_history where installation_history.operating_status = 'active')ih
+      where ih.operating_status = 'active' and inst_num = 1
+  ),
+  systems_size as
+  (
+    select
+      contract.customer_id,
+      system_size_watts
+    from installation_size
+    left join contract
+    on contract.installation_id =
+       installation_size.installation_id
+  ),
+  all_approved_projects as
+  (
+      select
+       date_trunc('day', ((approved_at + interval '-5 hour'))::timestamp)::date as approved_at,
+       docs_and_approvals.lead_id
+      from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+      where docs_and_approvals.type = 'subscriptionContract'
+      and docs_and_approvals.approval_status = 'approved'
+   ),
+  approved_capacity as
+  (
+    select
+      lead_id,
+      (data ->> 'systemCapacityKW')::float*1000 as approved_capacity
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'projectDesign'
+    and approval_status = 'approved'
+  ),
+  approved_proposal as
+  (
+    select
+      lead_id,
+      data ->> 'sheetsProposalId' as sheets_proposal_id
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'subscriptionContract'
+    and approval_status = 'approved'
+  ),
+  proposal_data as
+  (
+    select
+      approved_proposal.lead_id,
+      approved_proposal.sheets_proposal_id,
+      proposal.system_size_watts
+    from approved_proposal
+    left join proposal
+    on approved_proposal.sheets_proposal_id = proposal.sheets_proposal_id
+    left join lead
+    on lead.lead_id = approved_proposal.lead_id
+  )
+select
+  approved_at,
+  lead.lead_id,
+  lead.customer_id,
+  proposal_data.sheets_proposal_id,
+  proposal_data.system_size_watts as proposal_capacity,
+  case
+    when systems_size.system_size_watts is not null
+    then systems_size.system_size_watts
+    when approved_capacity.approved_capacity is not null
+    then approved_capacity.approved_capacity
+    else proposal_data.system_size_watts end
+  as system_size_watts
+from all_approved_projects
+left join lead
+on lead.lead_id = all_approved_projects.lead_id
+left join proposal
+on all_approved_projects.lead_id = proposal.lead_id
+left join approved_capacity
+on all_approved_projects.lead_id = approved_capacity.lead_id
+left join proposal_data
+on proposal_data.lead_id = all_approved_projects.lead_id
+left join systems_size
+on systems_size.customer_id = lead.customer_id
+group by 1,2,3,4,5,6
+order by 3) as approved_projects
+  ),
+  customer_interest_data as
+  (
+    select
+      lead_id,
+      created_at,
+      data ->> 'reason' as lost_interest_reason
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'customerInterest'
+    and data ->> 'interested' = 'false'
+  ),
+  installation_date_data as
+  (
+    select
+      lead_id,
+      data ->> 'installationDate' as installation_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'installationDate'
+  ),
+  installation_date_approval_data as
+  (
+    select
+      lead_id,
+      approved_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'installationDate'
+    and approval_status = 'approved'
+  ),
+  equipment_delivery_data as
+  (
+    select
+      lead_id,
+      data ->> 'deliveryDate' as equipment_delivery_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'equipmentDelivery'
+  ),
+  equipment_delivery_approval_data as
+  (
+    select
+      lead_id,
+      approved_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'equipmentDelivery'
+    and approval_status = 'approved'
+  ),
+  installation_start_data as
+  (
+    select
+      lead_id,
+      data ->> 'installationStartDate' as installation_start_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'installationStart'
+  ),
+  installation_start_approval_data as
+  (
+    select
+      lead_id,
+      approved_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'installationStart'
+    and approval_status = 'approved'
+  ),
+  commissioning_data as
+  (
+    select
+      lead_id,
+      created_at as commissioning_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'installationFunctionDemo'
+  ),
+  commissioning_approval_data as
+  (
+    select
+      lead_id,
+      approved_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'installationFunctionDemo'
+    and approval_status = 'approved'
+  ),
+  interconnection_approval_data as
+  (
+    select
+      lead_id,
+      approved_at
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'interconnection'
+    and approval_status = 'approved'
+  )
+select
+  lead.lead_id,
+  lead.customer_id,
+  lead.name,
+  source_data.source_clean as lead_type,
+  lead.created_at,
+  analytics_lead.ec_name as assigned_ec,
+  approval_data.approved_at as project_approved_at,
+  approval_data.proposal_capacity,
+  approval_data.system_size_watts,
+  installation_date_data.installation_at,
+  installation_date_approval_data.approved_at as installation_date_approved_at,
+  equipment_delivery_data.equipment_delivery_at,
+  equipment_delivery_approval_data.approved_at as equipment_delivery_approved_at,
+  installation_start_data.installation_start_at,
+  installation_start_approval_data.approved_at as installation_start_approved_at,
+  commissioning_data.commissioning_at,
+  commissioning_approval_data.approved_at as commissioning_approved_at,
+  analytics_lead.first_interconnection_at as interconnection_at,
+  interconnection_approval_data.approved_at as interconnection_approved_at,
+  customer_interest_data.created_at as lost_interest_at,
+  customer_interest_data.lost_interest_reason,
+  lead_funnel.funnel_status
+from lead
+left join analytics_lead
+on lead.lead_id = analytics_lead.lead_id
+left join source_data
+on source_data.lead_id = analytics_lead.lead_id
+left join customer_interest_data
+on customer_interest_data.lead_id = analytics_lead.lead_id
+left join approval_data
+on approval_data.lead_id = analytics_lead.lead_id
+left join (with
+  is_approved as
+    (
+      -- get all approved designs
+      select
+        approved_projects.lead_id
+      from (with
+/*inactivated
+proxy_approval as
+ (
+      select
+        approved_at + interval'3 days' as proxy_approved_at,
+        lead_id
+      from [docs_and_approvals]
+      where docs_and_approvals.type = 'customerInstallationPermissionRequest'
+      and docs_and_approvals.approval_status = 'approved'
+  ),
+all_approved_projects as
+  (
+      select
+        case
+          when proxy_approved_at < approved_at
+          then proxy_approved_at
+          else approved_at end
+            as approved_at,
+       docs_and_approvals.lead_id
+      from [docs_and_approvals]
+      left join proxy_approval
+      on proxy_approval.lead_id = docs_and_approvals.lead_id
+      where docs_and_approvals.type = 'subscriptionContract'
+      and docs_and_approvals.approval_status = 'approved'
+  ),
+*/
+  installation_size as
+  (
+      select
+        ih.installation_id,
+        ih.system_size_watts
+      from (select
+            installation_history.*,
+            row_number() over (partition by installation_id order by created_at desc) as inst_num
+            from installation_history where installation_history.operating_status = 'active')ih
+      where ih.operating_status = 'active' and inst_num = 1
+  ),
+  systems_size as
+  (
+    select
+      contract.customer_id,
+      system_size_watts
+    from installation_size
+    left join contract
+    on contract.installation_id =
+       installation_size.installation_id
+  ),
+  all_approved_projects as
+  (
+      select
+       date_trunc('day', ((approved_at + interval '-5 hour'))::timestamp)::date as approved_at,
+       docs_and_approvals.lead_id
+      from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+      where docs_and_approvals.type = 'subscriptionContract'
+      and docs_and_approvals.approval_status = 'approved'
+   ),
+  approved_capacity as
+  (
+    select
+      lead_id,
+      (data ->> 'systemCapacityKW')::float*1000 as approved_capacity
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'projectDesign'
+    and approval_status = 'approved'
+  ),
+  approved_proposal as
+  (
+    select
+      lead_id,
+      data ->> 'sheetsProposalId' as sheets_proposal_id
+    from (WITH recent_docs as (
+  SELECT
+    a.*
+  FROM lead_doc a LEFT JOIN lead_doc b
+  ON a.lead_id = b.lead_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+), recent_approvals as (
+  SELECT
+    a.*
+  FROM lead_approval a LEFT JOIN lead_approval b
+  ON a.lead_doc_id = b.lead_doc_id AND a.type = b.type AND a.created_at < b.created_at
+  WHERE b.lead_id is null
+)
+select
+  rd.* as "lead_id",
+  ra.lead_approval_id,
+  ra.approver_user_id,
+  (CASE WHEN ra IS NULL THEN 'pending' ELSE ra.status::text END) as "approval_status",
+  ra.created_at as "approved_at",
+  ra.sub_approvals,
+  ra.notes as "approval_notes"
+from recent_docs rd LEFT JOIN recent_approvals ra on rd.lead_doc_id = ra.lead_doc_id) as docs_and_approvals
+    where type = 'subscriptionContract'
+    and approval_status = 'approved'
+  ),
+  proposal_data as
+  (
+    select
+      approved_proposal.lead_id,
+      approved_proposal.sheets_proposal_id,
+      proposal.system_size_watts
+    from approved_proposal
+    left join proposal
+    on approved_proposal.sheets_proposal_id = proposal.sheets_proposal_id
+    left join lead
+    on lead.lead_id = approved_proposal.lead_id
+  )
+select
+  approved_at,
+  lead.lead_id,
+  lead.customer_id,
+  proposal_data.sheets_proposal_id,
+  proposal_data.system_size_watts as proposal_capacity,
+  case
+    when systems_size.system_size_watts is not null
+    then systems_size.system_size_watts
+    when approved_capacity.approved_capacity is not null
+    then approved_capacity.approved_capacity
+    else proposal_data.system_size_watts end
+  as system_size_watts
+from all_approved_projects
+left join lead
+on lead.lead_id = all_approved_projects.lead_id
+left join proposal
+on all_approved_projects.lead_id = proposal.lead_id
+left join approved_capacity
+on all_approved_projects.lead_id = approved_capacity.lead_id
+left join proposal_data
+on proposal_data.lead_id = all_approved_projects.lead_id
+left join systems_size
+on systems_size.customer_id = lead.customer_id
+group by 1,2,3,4,5,6
+order by 3) as approved_projects
+    ),
+    last_comment as
+    (
+      with
+        a as
+          (select * from lead_doc),
+        b as
+          (select * from lead_doc)
+      select
+              a.lead_id,
+              case
+                when a.data ->> 'notes' is not null then a.data ->> 'notes'
+                when a.data ->> 'comments' is not null then a.data ->> 'comments'
+                else null end || ' // source is: ' || a.type as latest_comment
+            from a
+            left join b
+            on a.lead_id = b.lead_id and a.created_at < b.created_at
+            WHERE b.lead_id is null
+     )
+        select
+          al.created_at,
+          lead.originating_user_id,
+          al.lead_id,
+          al.customer_id,
+          al.name as customer_name,
+          lead.email as customer_email,
+          al.originator_type,
+          al.amby_name,
+          al.amby_email,
+          al.ec_name,
+          lead.source,
+          last_comment.latest_comment,
+          al.qualified_at,
+          al.signed_at,
+          al.first_cfe_bill_at,
+          CASE WHEN
+          is_approved.lead_id is not null THEN current_timestamp ELSE al.approved_at
+          END as "approved_at",
+          case
+            when al.interested = false then '0_not_interested'
+            when is_approved.lead_id is not null or al.approved_at is not null then '8_approved'
+            when al.signed_at is not null then '7_signed'
+            when al.sales_visit_report_lead_status is not null then '6_' ||  al.sales_visit_report_lead_status
+            when al.first_proposal_request_at is not null then '5_proposal generated'
+            when al.first_sales_visit_request_at is not null then '4_visit scheduled'
+            when al.first_contact_at is not null then '3_contacted'
+            when al.qualified_at is not null then '2_qualifed'
+            else '1_unqualified' end as funnel_status,
+          case
+            when al.interested = false then '0_not_interested'
+            when is_approved.lead_id is not null OR al.approved_at is not null then '7_approved'
+            when is_approved.lead_id is null AND al.approved_at is null and al.signed_at is not null then '6_approval_pending'
+            when
+              al.signed_at is null
+              and (al.sales_visit_report_lead_status is not null OR al.first_proposal_request_at is not null)
+              then '5_signature_pending'
+            when
+              (al.first_proposal_request_at is null AND al.sales_visit_report_lead_status is null)
+              and al.first_sales_visit_request_at is not null then '4_visit_pending'
+            when al.first_sales_visit_request_at is null
+              and al.first_contact_at is not null then '3_scheduling_pending'
+            when al.first_contact_at is null and al.qualified_at is not null then '2_contact_pending'
+            when al.qualified_at is null then '1_qualification_pending' end
+            as open_status
+        from analytics_lead al
+        left join is_approved
+        on al.lead_id = is_approved.lead_id
+        left join lead
+        on al.lead_id = lead.lead_id
+        left join last_comment
+        on al.lead_id = last_comment.lead_id) as lead_funnel
+on lead_funnel.lead_id = analytics_lead.lead_id
+left join installation_date_data
+on installation_date_data.lead_id = analytics_lead.lead_id
+left join installation_date_approval_data
+on installation_date_approval_data.lead_id = analytics_lead.lead_id
+left join equipment_delivery_data
+on equipment_delivery_data.lead_id = analytics_lead.lead_id
+left join equipment_delivery_approval_data
+on equipment_delivery_approval_data.lead_id = analytics_lead.lead_id
+left join installation_start_data
+on installation_start_data.lead_id = analytics_lead.lead_id
+left join installation_start_approval_data
+on installation_start_approval_data.lead_id = analytics_lead.lead_id
+left join commissioning_data
+on commissioning_data.lead_id = analytics_lead.lead_id
+left join commissioning_approval_data
+on commissioning_approval_data.lead_id = analytics_lead.lead_id
+left join interconnection_approval_data
+on interconnection_approval_data.lead_id = analytics_lead.lead_id
+where approval_data.lead_id is not null
+group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22
+order by 2) as post_approval_analytics
