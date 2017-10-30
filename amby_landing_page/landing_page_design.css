@@ -1,0 +1,124 @@
+@font-face {
+    font-family: Gibson;
+    src: url(fonts/gibson.ttf);
+}
+
+
+body, h1, h2, h4, p{
+font-family: Gibson;
+text-align: center;
+}
+
+.home_name{
+  font-family: Gibson;
+}
+
+img{
+  vertical-align: middle;
+}
+
+.site-title{
+      height: 28px;
+}
+
+#upper_navbar{
+  background-color: #FFFFFF;
+  margin-bottom: 0px;
+}
+
+.navbar.navbar-default {
+    border: 0;
+}
+
+
+#intro-section{
+  width: 100%;
+  min-height: 500px;
+  height:auto;
+  background: url(images/mainbackground1.png);
+  background-attachment: scroll;
+  background-size: cover;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  color: #FFFFFF;
+}
+
+#title_intro{
+  padding-top: 40px;
+  text-align: center;
+  padding-left: 20px;
+  margin-left: auto;
+  text-shadow: 0px 0px 15px rgba(0, 0, 0, 0.5);
+  font-family: Gibson;
+}
+
+#video_signup{
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+  margin-top: 40px;
+  border-radius: 25px;
+}
+
+#text-video{
+  font-family: Gibson;
+  font-style: normal;
+  font-weight: normal;
+  line-height: normal;
+  font-size: 20px;
+  text-align: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 393px;
+  height: 50px;
+  left: 572px;
+  top: 585px;
+
+}
+
+.video{
+  border-radius: 10px;
+}
+
+.section-header{
+  margin-top: 50px;
+  margin-bottom: 70px;
+  font-family: Gibson;
+  font-style: normal;
+  line-height: normal;
+  text-align: center;
+  color:#1C2F56;
+
+}
+
+.yellow-text{
+  font-family: Gibson;
+  font-style: normal;
+  line-height: normal;
+  text-align: center;
+  color: #F8AE09;
+}
+
+
+.section-title{
+  color:#B2B6BE;
+  padding-top: 20px;
+  text-align: center;
+  font-weight: bold;
+  font-family: Gibson;
+
+}
+
+.thumbnail-text{
+  color:#B2B6BE;
+  padding-top: 20px;
+  text-align: center;
+  font-family: Gibson;
+}
+
+#impact{
+  margin-bottom: 50px;
+}
