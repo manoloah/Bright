@@ -4,9 +4,15 @@
 }
 
 
-body, h1, h2, h4, p{
+body, h1, h2,h3, h4, p, a{
 font-family: Gibson;
 text-align: center;
+}
+
+a {
+  text-decoration: inherit;
+  font-style: inherit;
+  color: inherit;
 }
 
 .home_name{
@@ -31,17 +37,29 @@ img{
 }
 
 
-#intro-section{
+.page-section{
   width: 100%;
   min-height: 500px;
   height:auto;
-  background: url(images/mainbackground1.png);
   background-attachment: scroll;
   background-size: cover;
   background-position: top;
   background-repeat: no-repeat;
   background-size: 100% 100%;
+}
+
+
+#intro-section{
+  background: url(images/mainbackground1.png);
   color: #FFFFFF;
+  width: 100%;
+  min-height: 500px;
+  height:auto;
+  background-attachment: scroll;
+  background-size: cover;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 #title_intro{
@@ -113,7 +131,7 @@ img{
 }
 
 .thumbnail-text{
-  color:#B2B6BE;
+  color:#bfc3cb;
   padding-top: 20px;
   text-align: center;
   font-family: Gibson;
@@ -121,4 +139,32 @@ img{
 
 #impact{
   margin-bottom: 50px;
+}
+
+#investors{
+  background-color:#1c2f56;
+  color: white;
+}
+
+#investors-header{
+  color:white;
+}
+
+#invstors-row{
+  margin-bottom: 50px;
+}
+
+a:hover{
+  text-decoration: none;
+  color: #e9ebee;
+}
+
+.section-link {
+ text-decoration: none;
+ color: #FFFFFF;
+}
+
+.header-successstories{
+  color:#1c2f56;
+  font-family: Gibson;
 }
