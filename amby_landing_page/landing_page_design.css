@@ -41,23 +41,22 @@ img{
   width: 100%;
   min-height: 500px;
   height:auto;
-  background-attachment: scroll;
   background-size: cover;
   background-position: top;
   background-repeat: no-repeat;
   background-size: 100% 100%;
+
 }
 
-
 #intro-section{
-  background: url(images/mainbackground1.png);
+  background-image: url(images/mainbackground1.png);
   color: #FFFFFF;
   width: 100%;
   min-height: 500px;
   height:auto;
   background-attachment: scroll;
   background-size: cover;
-  background-position: top;
+  background-position: center;
   background-repeat: no-repeat;
   background-size: 100% 100%;
 }
@@ -70,6 +69,7 @@ img{
   text-shadow: 0px 0px 15px rgba(0, 0, 0, 0.5);
   font-family: Gibson;
 }
+
 
 #video_signup{
   margin-left: auto;
@@ -99,6 +99,7 @@ img{
 
 .video{
   border-radius: 10px;
+  box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.5);
 }
 
 .section-header{
@@ -109,6 +110,7 @@ img{
   line-height: normal;
   text-align: center;
   color:#1C2F56;
+  text-shadow: 0px 0px 3px #B2B6BE;
 
 }
 
@@ -167,4 +169,100 @@ a:hover{
 .header-successstories{
   color:#1c2f56;
   font-family: Gibson;
+}
+
+.profile-image{
+  border-radius: 50%;
+}
+
+#bottom-credits{
+  width: 100%;
+  min-height: 100px;
+  height:auto;a
+  background-attachment: scroll;
+  background-size: cover;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-color:#1c2f56;
+}
+
+
+.nav-pills a{
+  color:white;
+  margin: 20px 20px 20px 20px;
+}
+
+#silicon-valley{
+  padding-top: 50px;
+}
+
+#success-stories{
+  margin-bottom: 50px;
+}
+
+#onboarding-reg{
+  min-height: 300px;
+  max-height: auto;
+}
+
+/*Main button class
+==========================*/
+.ph-button {
+
+    border-style: solid;
+    border-width: 0px 0px 3px;
+    box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.1) inset;
+    color: #FFFFFF;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-block;
+    font-style: normal;
+    overflow: hidden;
+    text-align: center;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    transition: all 200ms ease-in-out 0s;
+    white-space: nowrap;
+    font-family: Gibson;
+    font-weight: 700;
+    padding: 20px 30px 20px;
+    font-size: 24px;
+
+}
+
+/*Red
+==========================*/
+.ph-btn-red {
+
+    background-color: #ff6857 !important;
+    border-color: #c4200d !important;
+
+}
+.ph-btn-red:hover, .ph-btn-red:focus, .ph-btn-red:active {
+    background: none repeat scroll 0 0 #ff6857 !important;
+    border-color: #E83131 !important;
+}
+
+
+/*DEMO ONLY FOR CENTER POSITION*/
+.ph-container {
+
+  margin: 0 auto;
+  display: inline;
+
+
+}
+
+.ph-float {
+  margin-top: 30px;
+  text-align: center;
+  margin-bottom: 30px;
+
+}
+
+.ph-clear {
+
+  clear: both;
+
 }
